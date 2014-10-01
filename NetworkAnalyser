@@ -1,0 +1,95 @@
+__author__ = 'macbooktoubuntu'
+import  re, subprocess, sys, socket
+
+#@@$$---------Program code for nslookup-------------$$@@#
+
+IP_INPUT = sys.argv[1]
+NS_TYPE = 'NS'
+NS_COMMAND = 'nslookup'
+
+#Popen commands executes the parameters inside it which is the command line in this case and then stdout will PIPE the output #
+
+output = subprocess.Popen([NS_COMMAND ,'-type='+NS_TYPE ,IP_INPUT],stdout=subprocess.PIPE).communicate()[0]
+
+#The nslookup result is split into lines #
+
+result = output.split("\n")
+LOOKUP_RESULT=[]
+
+#Loop to search for server name#
+
+for value in result:
+    if re.search('name', value):
+        value = value.split(" ")
+        LOOKUP_RESULT.append(value[2])
+
+#Loop to print the results#
+
+for ns in LOOKUP_RESULT:
+    print "----------------------------------------------------------------------------"
+    print "The ip address:"+ IP_INPUT
+    print "Hostname:" + ns
+    print "----------------------------------------------------------------------------"
+
+
+#@@$$---------Program code for ping-------------$$@@#
+
+#Popen commands executes the parameters inside it which is the command line in this case and then stdout will PIPE the output #
+
+ping_proc = subprocess.Popen(['ping', '-c', '2', sys.argv[2]], stdout=subprocess.PIPE).communicate()[0]
+
+#The ping statistics 3rd term containing the percentage of packets lost is taken#
+
+ping_percent=ping_proc.split(',')[2]
+ping_success=ping_percent.split(' ')
+ping_loss=ping_success[1]
+pingloss=ping_loss.replace("%","")
+
+#printing the result and status according to the percentage of packets lost#
+print "----------------------------------------------------------------------------"
+print "IP Address : " +sys.argv[2]
+if int(pingloss)>10:
+    print "Status = Down"
+else:
+    print "Status = Up"
+print "----------------------------------------------------------------------------"
+
+
+#@@$$---------Program code for nmap-------------$$@@#
+
+IP = socket.gethostbyname(sys.argv[3])
+nmap_hostname = sys.argv[3]
+nmap_command = 'nmap'
+
+#Popen commands executes the parameters inside it which is the command line in this case and then stdout will PIPE the output #
+
+output = subprocess.Popen([ nmap_command,nmap_hostname],stdout=subprocess.PIPE).communicate()[0]
+
+#The nslookup result is split into lines #
+
+nmap_result = output.split("\n")
+nmap_cl_list=[]
+nmap_op_list=[]
+
+#Loop to search for server name#
+
+for nmapclvalue in nmap_result:
+    if re.search('Not', nmapclvalue):
+        nmapclvalue = nmapclvalue.split(" ")
+        nmap_cl_list.append(nmapclvalue[2])
+
+for nmapopvalue in nmap_result:
+    if re.search('open', nmapopvalue):
+        nmapopvalue = nmapopvalue.split(" ")
+        nmap_int_value=nmapopvalue[0]
+    	nmap_op_list.append(nmap_int_value)
+
+
+#Loop to print the results#
+for nmapcl in nmap_cl_list:
+    print "Closed Ports:" + nmapcl
+    print"----------------------------------------------------------------------------"
+for nmapop in nmap_op_list:
+    print"----------------------------------------------------------------------------"
+    print "Open Ports:"+  nmapop
+
