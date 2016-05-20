@@ -1,0 +1,219 @@
+#!/usr/bin/python
+import socket
+import sys
+import re
+
+def get_content(link,value1,sessionid1):                        #This function returns the webpage from given link
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   #Creat Socket
+        server = "cs5700sp16.ccs.neu.edu"
+        port = 80
+        server_ip = socket.gethostbyname(server)
+        s.connect((server,80))                                  #Connection Initiated to the server
+
+        request1="GET "+str(link)+" /HTTP/1.0\r\nHost: cs5700sp16.ccs.neu.edu\nConnection: keep-alive\nCookie: csrftoken="+value1+"; sessionid="+sessionid1+"\r\n\r\n"
+        s.send (request1)
+        response11=[]                                           #using Multiple s.recv in order to get complete response
+        response12=[]
+        response13=[]
+        response_all=[]
+        response11 = s.recv(1000000)
+        response12 = s.recv(1000000)
+        response13 = s.recv(100000)
+        response_all.extend(response11)
+        response_all.extend(response12)
+        response_all.extend(response13)
+        response1=''.join(response_all)                         #Combining the response from all responselists
+        s.close()                                               #Closing the connection since issues seen if same socket was used further to get response
+        return (response1)
+
+def all_links(response1):                                       #parses the webpage and returns all the links
+        response_length =  len(response1)                       #Taking response length in response_length
+        link = []
+        main_list_links = []
+        end_point = '"'                                         #using (") to detect end of link
+        pointer = 0
+        response_buffer = response1                             #temporary variale to store response
+        response_buffer_length = len(response_buffer)           #calculating length
+        while pointer!= (response_buffer_length):               #loop until end of response_buffer
+                if "a href" in response_buffer:
+                        href_position = response_buffer.find("a href")  #calculating position of href
+                        link_start = href_position+8                    #assigning link startposition after href
+                        while response_buffer[link_start]!=end_point:   #Parsing link
+                                character = response_buffer[link_start]
+                                link.append(character)
+                                link_start=link_start+1
+                        link_str=''.join(link)                          #combining all link character to one
+                        main_list_links.append(link_str)
+                        link = []
+                        pointer = link_start+1                          #Incrementing pointer to point linkstart+1
+                        response_buffer = response_buffer[pointer:response_buffer_length] #moving content of buffer from last obtained link till the end
+                else:
+                        break
+
+        mail="mailto:choffnes@ccs.neu.edu"                      #Variables to store links not be traversed
+        neu="http://www.northeastern.edu"
+        choffnes="http://www.ccs.neu.edu/home/choffnes/"
+        home="/fakebook/"
+
+        if mail in main_list_links:                             #If linkes found in list of links remove
+                main_list_links.remove(mail)
+        if neu in main_list_links:
+                main_list_links.remove(neu)
+        if choffnes in main_list_links:
+                main_list_links.remove(choffnes)
+        if home in main_list_links:
+                main_list_links.remove(home)
+
+
+        return (main_list_links)                                #Returning  links to be traversed
+
+def status_code_301(response1):                                 #Function to handle error code 301
+        location = content.find("Location")                     #Find Location field from response
+        no = content.find("/fakebook/",location+1)
+        end_of_line = content.find(" ",no)
+        new_url = content[no:end_of_line]                       #Parsing link
+        response1 = get_content(new_url,value1,sessionid1)      #Fetching web page by calling get_content function
+        return (response1)
+
+def status_code_404_or_403():                                   #Function to handle error code 403/404
+        crawled.append(link)                                    #Append the link to the list of crawled
+        tobecrawled.pop(0)                                      #Remove the link from the list thats to be crawled
+        return (tobecrawled)
+
+
+def secret_flag(response1):                                     #Function to retreive secret_flags
+        var = response1.find("FLAG:")                           #Parsing response to find position of FLAG
+        if var > 0:                                             #If FLAG present proceed
+                start_position = var+5
+                end_position = start_position+64
+                secret = response1[start_position:end_position] #Parsing to get secret key
+                return (secret)                                 #Function returning secret key
+        else:
+                return (0)                                      #If secret key not found return 0
+
+
+
+def task_when_response(response1,link):                         #Function to complete tasks when response receiived without error code
+        all_links1=all_links(response1)                         #Calling function all_links to get all the links
+        if link in all_links1:                                  #Removing redundant link(link of persons name)
+                all_links1.remove(link)
+        crawled.append(link)                                    #Add the crawled link to list of crawled links
+        tobecrawled.pop(0)                                      #Pop the link when crawled
+        tobecrawled.extend(all_links1)                          #Add obtained links from webpage to list of tobecrawled
+        all_links1=[]                                           #Empty the temporary variable to store new set of links
+        return tobecrawled                                      #Return the new list with all the fetched links
+
+
+def crawl(value1,sessionid1,response1):                         #Function to perform crawling until all secret_keys received
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   #Creating new socket to avoid issues related to empty response
+        server = "cs5700sp16.ccs.neu.edu"
+        port = 80
+        server_ip = socket.gethostbyname(server)
+        s.connect((server,80))                                  #Connecting to the server
+
+        global all_links1                                       #Global declarationof  variable to store links to be used in other functions
+        global tobecrawled                                      #Global decalaration of tbecrawled list
+        global crawled                                          #Global declaration of crawled list
+        global secret_key                                       #Global declaration of secret_key list
+        secret_key = []                                         #List to store secret_key
+        secret_counter = 0                                      #Initialising to 0
+        all_links1=[]
+        tobecrawled=[]
+        tobecrawled=all_links(response1)
+        crawled = ["/fakebook/","mailto:choffnes@ccs.neu.edu","http://www.northeastern.edu","http://www.ccs.neu.edu/home/choffnes/"]
+
+        s.close()                                               #Closing socket connection
+
+        while len(tobecrawled) !=0 and secret_counter<5:        #Running loop until all secret_keys retreived
+                link = tobecrawled[0]                           #Link to be crawled will be at location[0]
+
+                if link in crawled:                             #If link already crawled remove from tobe crawled
+                        tobecrawled.pop(0)
+
+                if link not in crawled:                         #If link is not in crawled go ahead
+                        response1=get_content(link,value1,sessionid1)   #Call get_content to obtain webpage
+
+                        status_code = re.findall(r"\s(\d{3})\s", response1)     #Retreive status code from response
+                        if status_code[0] == '500':
+                                 response1=get_content(link,value1,sessionid1)  #resend GET request from get_content to get webpage
+                                 tobecrawled = task_when_response(response1,link) #Call task_when_response to get links
+                                 secret = secret_flag(response1)                  #Call secret_flag to obtain secret key if any
+                        elif status_code[0] == '301':
+                                 response1 = status_code_301(response1)         #Call function status_code_301 to handle error
+                                 tobecrawled = task_when_response(response1,link) #Call task_when_response to obtain all links
+                                 secret = secret_flag(response1)                  #Call secret_flag to get secret key if any
+                        elif status_code[0] == '404' or status_code[0] == '403':
+                                 tobecrawled = status_code_404_or_403()         #Call status_code_404_or_403 to handle error
+                        else:
+                                tobecrawled = task_when_response(response1,link)        #if none of the status codes call task_when_response
+                                secret = secret_flag(response1)                 #Call secret_flag to obtain secret flag if any
+                if secret != 0 and secret not in secret_key:                                                    #If secret key found Increment Secret key count
+                        secret_counter = secret_counter+1
+                        secret_key.append(secret)                               #Add to the list of Secret keys
+                print secret_key
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                   #Create Socket
+server = "cs5700sp16.ccs.neu.edu"
+port = 80
+server_ip = socket.gethostbyname(server)
+s.connect((server,80))                                                  #Connect Socket to Server
+request = "GET /accounts/login/?next=/fakebook/ /HTTP/1.0\r\nHost: cs5700sp15.ccs.neu.edu\nConnection: keep-alive\r\n\r\n"
+s.send (request)                                                        #Send 1st GET request to fetch login page
+r1 = s.recv(1000000)                                                    #Receive Response
+s.close()                                                               #Close socket to avoid further issues with empty response
+
+
+v1 = r1.find("csrfmiddlewaretoken")                                     #Finding posiiton of csrfmiddlewaretoken
+v2 = v1+28
+i = v2
+j = "'"
+k=0
+value = []
+while r1[i]!=j:                                                         #Collecting token in a list using while loop
+        m=r1[i]
+        value.append(m)
+        i=i+1
+value1=''.join(value)                                                   #Joining all the characters of the listr to be one key
+username = sys.argv[1]                                                  #Accepting the username from the CLI
+password = sys.argv[2]                                                  #Accepting the password from the CLI
+
+body= "username=" + username + "&password=" + password + "&csrfmiddlewaretoken=" + value1 + "&next=%2Ffakebook%2F"
+
+post = "POST /accounts/login/ HTTP/1.0\r\nHost: cs5700sp16.ccs.neu.edu\nConnection: keep-alive\nContent-Length: 109\nCookie: csrftoken="+value1+ ";\r\n\r\nusername=" + username + "&password=" + password + "&csrfmiddlewaretoken=" + value1 + "&next=%2Ffakebook%2F\r\n"
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                   #Creating socket
+server = "cs5700sp16.ccs.neu.edu"
+port = 80
+server_ip = socket.gethostbyname(server)
+s.connect((server,80))                                                  #Conecting socket to server
+
+s.send (post)                                                           #Sending Post
+response = s.recv(999999999)                                            #Receive Response
+
+s.close()                                                               #Close socket to avoid further issues with empty response
+s1 = response.find("sessionid")                                         #Find position of sessionid
+if s1!= -1:
+        s2=s1+10
+        q=';'
+        sessionid=[]
+        while response[s2]!=q:                                          #Parse output to obtain session id
+                s3=response[s2]
+                sessionid.append(s3)
+                s2=s2+1
+
+        sessionid1=''.join(sessionid)                                   #Joining all the characters of the listr to be one key
+
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)                    #Creating socket
+server = "cs5700sp16.ccs.neu.edu"
+port = 80
+server_ip = socket.gethostbyname(server)
+s.connect((server,80))                                                  #Conecting socket to server
+
+request="GET /fakebook/ /HTTP/1.0\r\nHost: cs5700sp16.ccs.neu.edu\nConnection: keep-alive\nCookie: csrftoken="+value1+"; sessionid="+sessionid1+"\r\n\r\n"
+s.send (request)                                                        #Send reuquest to server to fetch home page
+r1 = s.recv(99999999)                                                   #Receive response
+s.close()                                                               #Close socket to avoid further issues with empty response
+crawl(value1,sessionid1,r1)                                             #Call Crawl Function to start the Crawl
+for key in secret_key:
+        print key
